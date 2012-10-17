@@ -44,7 +44,7 @@ class SinatraApp < Sinatra::Base
   end
 
   use OmniAuth::Builder do
-    provider :evernote, 'inkedmn', 'aa273e653c2dbebc', :client_options => { :site => "#{ENURL}" }
+    provider :evernote, 'your-consumer-key', 'your-consumer-secret', :client_options => { :site => "#{ENURL}" }
   end
 
   get '/' do
