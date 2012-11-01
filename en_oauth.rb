@@ -1,41 +1,5 @@
 ##
-# evernote_oauth.rb
-# Copyright 2010 Evernote Corporation. All rights reserved.
-#
-# This sample web application demonstrates the step-by-step process of using OAuth to
-# authenticate to the Evernote web service. More information can be found in the
-# Evernote API Overview at http://www.evernote.com/about/developer/api/evernote-api.htm.
-#
-# Note that we're not attempting to demonstrate Ruby/Sinatra best practices or
-# build a scalable multi-user web application, we're simply giving you an idea
-# of how the OAuth workflow works with Evernote.
-#
-# Note that the formalization of OAuth as RFC 5849 introduced some terminology changes.
-# The comments in this sample code use the new (RFC) terminology, but most of the code
-# itself still uses the old terms, which are also used by the OAuth RubyGem.
-#
-# Old term                    New Term
-# --------------------------------------------------
-# Consumer                    client
-# Service Provider            server
-# User                        resource owner
-# Consumer Key and Secret     client credentials
-# Request Token and Secret    temporary credentials
-# Access Token and Secret     token credentials
-#
-# Requires the Sinatra framework and the OAuth RubyGem. You can install these
-# components as follows:
-#
-#   gem install evernote-thrift
-#   gem install sinatra
-#   gem install oauth
-#
-# To run this application:
-#
-#   ruby -rubygems evernote_oauth.rb
-#
-# Sinatra will start on port 4567. You can view the sample application by visiting
-# http://localhost:4567 in a browser.
+# Copyright 2012 Evernote Corporation. All rights reserved.
 ##
 
 require 'sinatra'
@@ -75,8 +39,11 @@ helpers do
     user_store.getUser(auth_token)
   end
 
+  def notebooks
+    @notebooks ||= note_store.listNotebooks(auth_token)
+  end
+
   def total_note_count
-    notebooks = note_store.listNotebooks(auth_token)
     notebooks.inject(0) do |total_count, notebook|
         filter = Evernote::EDAM::NoteStore::NoteFilter.new
         filter.notebookGuid = notebook.guid
@@ -90,7 +57,7 @@ helpers do
 # Index page
 ##
 get '/' do
-  erb :example
+  erb :index
 end
 
 ##
@@ -102,11 +69,10 @@ get '/reset' do
 end
 
 ##
-# Step 1: obtain temporary credentials
+# Obtain temporary credentials
 ##
 get '/requesttoken' do
   callback_url = request.url.chomp("requesttoken").concat("callback")
-
   begin
     session[:request_token] = client.authentication_request_token(:oauth_callback => callback_url)
     redirect '/authorize'
@@ -117,7 +83,7 @@ get '/requesttoken' do
 end
 
 ##
-# Step 2a: redirect the user to Evernote for authoriation
+# Redirect the user to Evernote for authoriation
 ##
 get '/authorize' do
   if session[:request_token]
@@ -130,74 +96,50 @@ get '/authorize' do
 end
 
 ##
-# Step 2b: receive callback from the Evernote authorization page
+# Receive callback from the Evernote authorization page
 ##
 get '/callback' do
   if params['oauth_verifier']
     session[:oauth_verifier] = params['oauth_verifier']
-    redirect '/accesstoken'
   else
     @last_error = "Content owner did not authorize the temporary credentials"
     erb :error
   end
-end
 
-##
-# Step 3: exchange the temporary credentials for token credentials
-##
-get '/accesstoken' do
-  # You shouldn't be invoking this if you don't have a request token
   if session[:request_token]
     begin
       session[:access_token] = session[:request_token].get_access_token(:oauth_verifier => session[:oauth_verifier])
-
-      # The response from the server will include the NoteStore URL that we
-      # will use to access the user's notes, as well as some other handy variables
-      session[:noteStoreUrl] = session[:access_token].params['edam_noteStoreUrl']
-      session[:webApiUrlPrefix] = session[:access_token].params['edam_webApiUrlPrefix']
-      session[:userId] = session[:access_token].params['edam_userId']
-
-      # Convert from milliseconds since the the epoch to seconds with fractional part
-      session[:tokenExpires] = session[:access_token].params['edam_expires']
-
       redirect '/list'
     rescue => e
-      @last_error = "Failed to obtain token credentials: #{e.message}"
+      @last_error = 'Error extracting access token'
       erb :error
     end
-  else
-    redirect '/'
   end
-
 end
 
+
 ##
-# Step 4: access the user's Evernote account
+# Access the user's Evernote account and display account data
 ##
 get '/list' do
   begin
     # Get notebooks
-    notebooks = client.note_store.listNotebooks(session[:access_token].token)
     session[:notebooks] = notebooks.map(&:name)
-
     # Get username
     session[:username] = en_user.username
-
     # Get total note count
     session[:total_notes] = total_note_count
-
   rescue => e
     @last_error = "Error listing notebooks: #{e.message}"
     erb :error
   end
-
-  erb :example
+  erb :index
 end
 
 
 __END__
 
-@@ example
+@@ index
 <html>
   <head>
     <title>Evernote Ruby Example App</title>
