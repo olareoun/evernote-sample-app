@@ -44,14 +44,13 @@ helpers do
   end
 
   def total_note_count
+    filter = Evernote::EDAM::NoteStore::NoteFilter.new
+    counts = note_store.findNoteCounts(auth_token, filter, false)
     notebooks.inject(0) do |total_count, notebook|
-        filter = Evernote::EDAM::NoteStore::NoteFilter.new
-        filter.notebookGuid = notebook.guid
-        counts = note_store.findNoteCounts(auth_token, filter, false)
-        total_count += counts.notebookCounts[notebook.guid]
-      end
+      total_count + (counts.notebookCounts[notebook.guid] || 0)
     end
   end
+end
 
 ##
 # Index page
@@ -99,21 +98,17 @@ end
 # Receive callback from the Evernote authorization page
 ##
 get '/callback' do
-  if params['oauth_verifier']
-    session[:oauth_verifier] = params['oauth_verifier']
-  else
+  unless params['oauth_verifier'] || session['request_token']
     @last_error = "Content owner did not authorize the temporary credentials"
-    erb :error
+    halt erb :error
   end
-
-  if session[:request_token]
-    begin
-      session[:access_token] = session[:request_token].get_access_token(:oauth_verifier => session[:oauth_verifier])
-      redirect '/list'
-    rescue => e
-      @last_error = 'Error extracting access token'
-      erb :error
-    end
+  session[:oauth_verifier] = params['oauth_verifier']
+  begin
+    session[:access_token] = session[:request_token].get_access_token(:oauth_verifier => session[:oauth_verifier])
+    redirect '/list'
+  rescue => e
+    @last_error = 'Error extracting access token'
+    erb :error
   end
 end
 
@@ -129,11 +124,11 @@ get '/list' do
     session[:username] = en_user.username
     # Get total note count
     session[:total_notes] = total_note_count
+    erb :index
   rescue => e
     @last_error = "Error listing notebooks: #{e.message}"
     erb :error
   end
-  erb :index
 end
 
 
@@ -141,32 +136,32 @@ __END__
 
 @@ index
 <html>
-  <head>
-    <title>Evernote Ruby Example App</title>
-  </head>
-  <body>
-    <a href="/requesttoken">Click here</a> to authenticate this application using OAuth.
-    <% if session[:notebooks] %>
-    <hr />
-    <h3>The current user is <%= session[:username] %> and there are <%= session[:total_notes] %> notes in their account</h3>
-    <br />
-    <h3>Here are the notebooks in this account:</h3>
-      <ul>
-      <% session[:notebooks].each do |notebook| %>
-        <li><%= notebook %></li>
-      <% end %>
-    </ul>
+<head>
+  <title>Evernote Ruby Example App</title>
+</head>
+<body>
+  <a href="/requesttoken">Click here</a> to authenticate this application using OAuth.
+  <% if session[:notebooks] %>
+  <hr />
+  <h3>The current user is <%= session[:username] %> and there are <%= session[:total_notes] %> notes in their account</h3>
+  <br />
+  <h3>Here are the notebooks in this account:</h3>
+  <ul>
+    <% session[:notebooks].each do |notebook| %>
+    <li><%= notebook %></li>
     <% end %>
-  </body>
+  </ul>
+  <% end %>
+</body>
 </html>
 
 @@ error 
 <html>
-  <head>
-    <title>Evernote Ruby Example App &mdash; Error</title>
-  </head>
-  <body>
-    <p>An error occurred: <%= @last_error %></p>
-    <p>Please <a href="/reset">start over</a>.</p>
-  </body>
+<head>
+  <title>Evernote Ruby Example App &mdash; Error</title>
+</head>
+<body>
+  <p>An error occurred: <%= @last_error %></p>
+  <p>Please <a href="/reset">start over</a>.</p>
+</body>
 </html>
