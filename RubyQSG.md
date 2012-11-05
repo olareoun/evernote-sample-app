@@ -83,7 +83,15 @@ Finally, we have a boolean variable `SANDBOX` which controls whether our app wil
 
 ### Our App's Components
 
-Within `en_oauth.rb`, we have a few different pieces of our application: the `before` filter, the `helpers` functions, our `get` routes and a pair of simple ERB templates.
+Within `en_oauth.rb`, we have a few different pieces of our application: the `before` filter, the `helpers` functions, our `get` routes and a pair of simple ERB templates. 
+
+First, let's cover what I'm lovingly calling "the preamble":
+
+<script src="https://gist.github.com/4020133.js?file=en_auth.rb"></script>
+
+First, we include the Sinatra gem and enable cookie-based sessions (part of Sinatra). Second, we include the current directory in the `$LOAD_PATH` (so we can load our configuration file). Finally, we load said configuration file. Pretty straightforward.
+
+Now, on with the meat of the app...
 
 #### `before`
 
@@ -104,9 +112,9 @@ A collection of plain Ruby functions that will be used in our application. Many 
 
 <script src="https://gist.github.com/3995544.js?file=en_oauth.rb"></script>
 
-We start with our `notebooks` collection. For each notebook in the collection, we create a `NoteFilter` object, `filter`. This object can be assigned various criteria for fetching groups of notes ([see the full function definition here](http://dev.evernote.com/documentation/reference/NoteStore.html#Struct_NoteFilter)). In this case, we want to restrict our search to only notes contained in the current notebook. So, we assign the GUID of the current notebook to the `notebookGuid` member of our `filter` instance.
+We begin with `filter`, a new (empty) instance of `NoteFilter`. Since we want to query the entire account, we won't be adding any additional filtering criteria ([see the full `NoteFilter` definition here](http://dev.evernote.com/documentation/reference/NoteStore.html#Struct_NoteFilter)).
 
-Next, we call `findNoteCounts`, passing our `auth_token` and `filter` as parameters (the `false` parameter indicates that we don't want notes from the account's Trash container). `findNoteCounts` returns an instance of  `NoteCollectionCounts` — a hash of notebook GUIDs mapped to the number of notes in the corresponding notebook. We ask `counts` (our instance of `NoteCollectionCounts`) for the number of notes in our notebook and return the total of these counts. 
+Next, we call `findNoteCounts`, passing our `auth_token` and `filter` as parameters (the `false` parameter indicates that we don't want notes from the account's Trash container). `findNoteCounts` returns an instance of  `NoteCollectionCounts` — a hash of notebook GUIDs mapped to the number of notes in the corresponding notebook. Iterating over all of our notebooks, we ask `counts` (our instance of `NoteCollectionCounts`) for the number of notes in that notebook—using its GUID—and return the total of these counts. 
 
 #### `get` Routes
 
@@ -148,7 +156,12 @@ After successfully authenticating with Evernote and authorizing our app, they're
 
 <script src="https://gist.github.com/3996916.js?file=en_auth.rb"></script>
 
-When the user is sent back to our callback URL, we verify that the `oauth_verifier` parameter is set before adding it to our session and sending the user to `/accesstoken` If `oauth_verifier` isn't part of the query string sent to our callback URL, an error is displayed.
+When the user is sent back to our callback URL, we verify that either:
+
+1. The `oauth_verifier` parameter is set in the URL.
+2. The `request_token` value is already present in the `session`. 
+
+If one of these two conditions is true, we include the `oauth_verifier` parameter in our `session`. If neither of these conditions is true, the user is shown an error.
 
 Next, we extract the access token (used to make API calls) from the and add it to `session`. If it's not there, an error is displayed. If it is, we send the user to the `/list` route we defined earlier. Assuming everything worked as advertised, the user will see their username, number of notes in their account and the name of each notebook in their account.
 

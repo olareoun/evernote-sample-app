@@ -91,7 +91,15 @@
 
 <h3>Our App's Components</h3>
 
-<p>Within <code>en_oauth.rb</code>, we have a few different pieces of our application: the <code>before</code> filter, the <code>helpers</code> functions, our <code>get</code> routes and a pair of simple ERB templates.</p>
+<p>Within <code>en_oauth.rb</code>, we have a few different pieces of our application: the <code>before</code> filter, the <code>helpers</code> functions, our <code>get</code> routes and a pair of simple ERB templates. </p>
+
+<p>First, let's cover what I'm lovingly calling "the preamble":</p>
+
+<script src="https://gist.github.com/4020133.js?file=en_auth.rb"></script>
+
+<p>First, we include the Sinatra gem and enable cookie-based sessions (part of Sinatra). Second, we include the current directory in the <code>$LOAD_PATH</code> (so we can load our configuration file). Finally, we load said configuration file. Pretty straightforward.</p>
+
+<p>Now, on with the meat of the app...</p>
 
 <h4><code>before</code></h4>
 
@@ -114,9 +122,9 @@
 
 <script src="https://gist.github.com/3995544.js?file=en_oauth.rb"></script>
 
-<p>We start with our <code>notebooks</code> collection. For each notebook in the collection, we create a <code>NoteFilter</code> object, <code>filter</code>. This object can be assigned various criteria for fetching groups of notes (<a href="http://dev.evernote.com/documentation/reference/NoteStore.html#Struct_NoteFilter">see the full function definition here</a>). In this case, we want to restrict our search to only notes contained in the current notebook. So, we assign the GUID of the current notebook to the <code>notebookGuid</code> member of our <code>filter</code> instance.</p>
+<p>We begin with <code>filter</code>, a new (empty) instance of <code>NoteFilter</code>. Since we want to query the entire account, we won't be adding any additional filtering criteria (<a href="http://dev.evernote.com/documentation/reference/NoteStore.html#Struct_NoteFilter">see the full <code>NoteFilter</code> definition here</a>).</p>
 
-<p>Next, we call <code>findNoteCounts</code>, passing our <code>auth_token</code> and <code>filter</code> as parameters (the <code>false</code> parameter indicates that we don't want notes from the account's Trash container). <code>findNoteCounts</code> returns an instance of  <code>NoteCollectionCounts</code> — a hash of notebook GUIDs mapped to the number of notes in the corresponding notebook. We ask <code>counts</code> (our instance of <code>NoteCollectionCounts</code>) for the number of notes in our notebook and return the total of these counts. </p>
+<p>Next, we call <code>findNoteCounts</code>, passing our <code>auth_token</code> and <code>filter</code> as parameters (the <code>false</code> parameter indicates that we don't want notes from the account's Trash container). <code>findNoteCounts</code> returns an instance of  <code>NoteCollectionCounts</code> — a hash of notebook GUIDs mapped to the number of notes in the corresponding notebook. Iterating over all of our notebooks, we ask <code>counts</code> (our instance of <code>NoteCollectionCounts</code>) for the number of notes in that notebook—using its GUID—and return the total of these counts. </p>
 
 <h4><code>get</code> Routes</h4>
 
@@ -160,7 +168,14 @@
 
 <script src="https://gist.github.com/3996916.js?file=en_auth.rb"></script>
 
-<p>When the user is sent back to our callback URL, we verify that the <code>oauth_verifier</code> parameter is set before adding it to our session and sending the user to <code>/accesstoken</code> If <code>oauth_verifier</code> isn't part of the query string sent to our callback URL, an error is displayed.</p>
+<p>When the user is sent back to our callback URL, we verify that either:</p>
+
+<ol>
+<li>The <code>oauth_verifier</code> parameter is set in the URL.</li>
+<li>The <code>request_token</code> value is already present in the <code>session</code>. </li>
+</ol>
+
+<p>If one of these two conditions is true, we include the <code>oauth_verifier</code> parameter in our <code>session</code>. If neither of these conditions is true, the user is shown an error.</p>
 
 <p>Next, we extract the access token (used to make API calls) from the and add it to <code>session</code>. If it's not there, an error is displayed. If it is, we send the user to the <code>/list</code> route we defined earlier. Assuming everything worked as advertised, the user will see their username, number of notes in their account and the name of each notebook in their account.</p>
 
