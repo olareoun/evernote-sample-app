@@ -50,6 +50,15 @@ helpers do
       total_count + (counts.notebookCounts[notebook.guid] || 0)
     end
   end
+
+  def default_note
+    note = Evernote::EDAM::Type::Note.new
+    note.title = 'Default note title'
+    note.content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+    "<!DOCTYPE en-note SYSTEM \"http://xml.evernote.com/pub/enml2.dtd\">" +
+    "<en-note>Hello world!!</en-note>"
+    note
+  end
 end
 
 ##
@@ -123,10 +132,20 @@ get '/list' do
     # Get username
     session[:username] = en_user.username
     # Get total note count
-    session[:total_notes] = total_note_count
+    # session[:total_notes] = total_note_count
     erb :index
   rescue => e
     @last_error = "Error listing notebooks: #{e.message}"
+    erb :error
+  end
+end
+
+get '/create' do
+  begin
+    note_store.createNote(auth_token, default_note)
+    redirect '/list'
+  rescue
+    @last_error = 'Error creating note'
     erb :error
   end
 end
