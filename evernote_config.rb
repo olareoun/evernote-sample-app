@@ -12,4 +12,7 @@ require "evernote_oauth"
 OAUTH_CONSUMER_KEY = "olareoun"
 OAUTH_CONSUMER_SECRET = "de27bae3bc64df82"
 
+OAUTH_CONSUMER_KEY_FULL = "olareoun-1256"
+OAUTH_CONSUMER_SECRET_FULL = '1cb959efa75b2e96'
+
 SANDBOX = true
