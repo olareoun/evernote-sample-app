@@ -23,20 +23,44 @@ end
 
 helpers do
   def auth_token
-    session[:access_token].token if session[:access_token]
+    DEVELOPER_TOKEN
+#    EVERNOTE_DEVELOPER_TOKEN
+#    session[:access_token].token if session[:access_token]
   end
 
   def client
-    puts 'auth_token ' + auth_token
     @client ||= EvernoteOAuth::Client.new(token: auth_token, consumer_key:OAUTH_CONSUMER_KEY_FULL, consumer_secret:OAUTH_CONSUMER_SECRET_FULL, sandbox: SANDBOX)
   end
 
   def user_store
-    @user_store ||= client.user_store
+    @user_store ||= create_token_user_store
+  end
+
+  def create_token_user_store
+    userStoreUrl = EVERNOTE_HOST + "/edam/user"
+    userStoreTransport = Thrift::HTTPClientTransport.new(userStoreUrl)
+    userStoreProtocol = Thrift::BinaryProtocol.new(userStoreTransport)
+    userStore = Evernote::EDAM::UserStore::UserStore::Client.new(userStoreProtocol)
+    userStore
   end
 
   def note_store
-    @note_store ||= client.note_store
+    @note_store ||= create_token_note_store
+  end
+
+  def create_token_note_store
+    noteStoreUrl = user_store.getNoteStoreUrl(auth_token)
+    noteStoreTransport = Thrift::HTTPClientTransport.new(noteStoreUrl)
+    noteStoreProtocol = Thrift::BinaryProtocol.new(noteStoreTransport)
+    noteStore = Evernote::EDAM::NoteStore::NoteStore::Client.new(noteStoreProtocol)
+    noteStore
+  end
+
+  def notestore_for_shard_id(shardId)
+    noteStoreTransport = Thrift::HTTPClientTransport.new(EVERNOTE_HOST + "/shard/" + shardId + "/notestore")
+    noteStoreProtocol = Thrift::BinaryProtocol.new(noteStoreTransport)
+    noteStore = Evernote::EDAM::NoteStore::NoteStore::Client.new(noteStoreProtocol)
+    noteStore
   end
 
   def en_user
@@ -48,12 +72,19 @@ helpers do
   end
 
   def public_notebooks(userId, uri)
-    puts userId
-    user_info = user_store.getPublicUserInfo(userId)
-    puts 'b' + user_info.nil?.to_s
-    @public_notebooks ||= note_store.getPublicNotebook(user_info.userId, uri)
-    puts 'c'
-    @public_notebooks
+    begin
+      user_info = user_store.getPublicUserInfo(userId)
+      puts 'got user info'
+      puts user_info.userId
+      puts user_info.shardId
+      puts uri
+      @public_notebooks ||= notestore_for_shard_id(user_info.shardId).getPublicNotebook(user_info.userId, uri)
+      puts @public_notebooks.nil?
+      @public_notebooks
+    rescue Exception => e
+      puts 'exception thrown'
+      puts e.to_s
+    end
   end
 
   def total_note_count
@@ -148,7 +179,9 @@ end
 ##
 get '/list' do
   begin
+#    public_notebook = public_notebooks('olareoun', 'public-notebook')
     public_notebook = public_notebooks('wilthor', 'wilthorsnotebook')
+#    public_notebook = public_notebooks('xaviuzz', 'notes2reveal')
     session[:public] = NotebookView.new(public_notebook.guid, public_notebook.name)
     session[:notebooks] = notebooks.map{|notebook| NotebookView.new(notebook.guid, notebook.name)}
     session[:username] = en_user.username
